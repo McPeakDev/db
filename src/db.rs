@@ -1,7 +1,8 @@
 use crate::types::{DBResult, DatabaseConnection, PostgresDBPool, QueryParams, DB};
+use axum::http::StatusCode;
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
-use tokio_postgres::{row::Row, Error, NoTls};
+use tokio_postgres::{row::Row, types::ToSql, Error, NoTls};
 use tracing::{debug, error};
 
 pub async fn setup(config: &DB) -> PostgresDBPool {
@@ -44,12 +45,12 @@ pub async fn query<'a, T: From<Row>>(
                 return Ok(results);
             }
 
-            return Err(String::from("No results were found"));
+            return Err((StatusCode::NOT_FOUND, String::from("No results were found")));
         }
         Err(e) => {
             let err = handle_db_error(e);
             error!("DB Error: {}", err);
-            return Err(err);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, err));
         }
     }
 }
@@ -74,12 +75,12 @@ pub async fn query_single<'a, T: From<Row>>(
                 return Ok(item);
             }
 
-            return Err(String::from("No results were found"));
+            return Err((StatusCode::NOT_FOUND, String::from("No results were found")));
         }
         Err(e) => {
             let err = handle_db_error(e);
             error!("DB Error: {}", err);
-            return Err(err);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, err));
         }
     }
 }
@@ -88,7 +89,7 @@ pub async fn execute<'a>(
     DatabaseConnection(ref conn): DatabaseConnection,
     query: &str,
     query_params: QueryParams<'a>,
-) -> DBResult<u64> {
+) -> Result<u64, (StatusCode, String)> {
     let params = query_params.unwrap_or(&[]);
 
     let db_result = conn.execute(query, params).await;
@@ -100,7 +101,7 @@ pub async fn execute<'a>(
         Err(e) => {
             let err = handle_db_error(e);
             error!("DB Error: {}", err);
-            return Err(err);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, err));
         }
     }
 }

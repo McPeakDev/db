@@ -9,7 +9,7 @@ use serde::Deserialize;
 use tokio_postgres::{types::ToSql, NoTls, Row};
 
 pub type PostgresDBPool = Pool<PostgresConnectionManager<NoTls>>;
-pub type DBResult<T> = Result<T, String>;
+pub type DBResult<T> = Result<T, (StatusCode, String)>;
 pub type QueryParams<'a> = Option<&'a [&'a (dyn ToSql + Sync)]>;
 pub type DBRow = Row;
 pub struct DatabaseConnection(pub PooledConnection<'static, PostgresConnectionManager<NoTls>>);
