@@ -4,8 +4,10 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
+axum = "0.7.5"
 bb8 = "0.7.1"
 bb8-postgres = "0.7.0"
+serde = { version = "1.0.210", features = ["derive"] }
 tokio = { version = "1.40.0", features = ["full"] }
 tokio-postgres = "0.7.2"
 tracing = "0.1"

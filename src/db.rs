@@ -1,7 +1,7 @@
 use crate::types::{DBResult, DatabaseConnection, PostgresDBPool, QueryParams, DB};
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
-use tokio_postgres::{row::Row, types::ToSql, Error, NoTls};
+use tokio_postgres::{row::Row, Error, NoTls};
 use tracing::{debug, error};
 
 pub async fn setup(config: &DB) -> PostgresDBPool {
@@ -116,7 +116,7 @@ fn handle_db_error(e: Error) -> String {
     }
 }
 
-fn handle_query_debug(query: &str, params_option: Option<&[&(dyn ToSql + Sync)]>) {
+fn handle_query_debug<'a>(query: &str, params_option: QueryParams<'a>) {
     match params_option {
         Some(params) => {
             debug!("Query DB: `{}` with params: `{:?}`", query, params);
