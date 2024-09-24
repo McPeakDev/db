@@ -1,7 +1,7 @@
-use crate::types::{DBResult, PostgresDBPool, QueryParams};
+use crate::types::{ConnectionPool, DBResult, PostgresDBPool, QueryParams};
 use bb8::Pool;
 use bb8_postgres::PostgresConnectionManager;
-use tokio_postgres::{row::Row, Error, GenericClient, NoTls};
+use tokio_postgres::{row::Row, Error, NoTls};
 use tracing::{debug, error};
 
 #[derive(Clone)]
@@ -32,93 +32,125 @@ impl PostgresDB {
         return self_clone;
     }
 
-    pub async fn query<'a, T: From<Row>, D: GenericClient>(
+    async fn get_pool(&self) -> Result<ConnectionPool, String> {
+        let pool_option = &self.pool;
+
+        return match pool_option {
+            Some(pool) => Ok(pool
+                .get_owned()
+                .await
+                .expect("A DB Connection has not been setup")),
+            None => Err(String::from("A DB Connection has not been setup")),
+        };
+    }
+
+    pub async fn query<'a, T: From<Row>>(
         &self,
-        db: D,
         query: &str,
         query_params: QueryParams<'a>,
     ) -> DBResult<Vec<T>> {
-        let params = query_params.unwrap_or(&[]);
+        let pool_option = self.get_pool().await;
 
-        let db_result = db.query(query, params).await;
+        if pool_option.is_ok() {
+            let pool = pool_option.unwrap();
 
-        Self::handle_query_debug(query, query_params);
+            let params = query_params.unwrap_or(&[]);
 
-        match db_result {
-            Ok(rows) => {
-                let num_of_rows = rows.len();
+            let db_result = pool.query(query, params).await;
 
-                if num_of_rows > 0 {
-                    let mut results: Vec<T> = vec![];
+            Self::handle_query_debug(query, query_params);
 
-                    for row in rows {
-                        let item = row.into();
-                        results.push(item);
+            match db_result {
+                Ok(rows) => {
+                    let num_of_rows = rows.len();
+
+                    if num_of_rows > 0 {
+                        let mut results: Vec<T> = vec![];
+
+                        for row in rows {
+                            let item = row.into();
+                            results.push(item);
+                        }
+
+                        return Ok(results);
                     }
 
-                    return Ok(results);
+                    return Err((404, String::from("No results were found")));
                 }
-
-                return Err((404, String::from("No results were found")));
-            }
-            Err(e) => {
-                let err = Self::handle_db_error(e);
-                error!("DB Error: {}", err);
-                return Err((500, err));
+                Err(e) => {
+                    let err = Self::handle_db_error(e);
+                    error!("DB Error: {}", err);
+                    return Err((500, err));
+                }
             }
         }
+        let err = pool_option.err().unwrap();
+        error!("DB Error: {}", err);
+        return Err((500, err));
     }
 
-    pub async fn query_single<'a, T: From<Row>, D: GenericClient>(
+    pub async fn query_single<'a, T: From<Row>>(
         &self,
-        db: D,
         query: &str,
         query_params: QueryParams<'a>,
     ) -> DBResult<T> {
-        let params = query_params.unwrap_or(&[]);
+        let pool_option = self.get_pool().await;
 
-        let db_result = db.query(query, params).await;
+        if pool_option.is_ok() {
+            let pool = pool_option.unwrap();
 
-        Self::handle_query_debug(query, query_params);
+            let params = query_params.unwrap_or(&[]);
 
-        match db_result {
-            Ok(rows) => {
-                let num_of_rows = rows.len();
+            let db_result = pool.query(query, params).await;
 
-                if num_of_rows > 0 {
-                    let item = rows[0].clone().into();
-                    return Ok(item);
+            Self::handle_query_debug(query, query_params);
+
+            match db_result {
+                Ok(rows) => {
+                    let num_of_rows = rows.len();
+
+                    if num_of_rows > 0 {
+                        let item = rows[0].clone().into();
+                        return Ok(item);
+                    }
+
+                    return Err((400, String::from("No results were found")));
                 }
-
-                return Err((400, String::from("No results were found")));
-            }
-            Err(e) => {
-                let err = Self::handle_db_error(e);
-                error!("DB Error: {}", err);
-                return Err((500, err));
+                Err(e) => {
+                    let err = Self::handle_db_error(e);
+                    error!("DB Error: {}", err);
+                    return Err((500, err));
+                }
             }
         }
+        let err = pool_option.err().unwrap();
+        error!("DB Error: {}", err);
+        return Err((500, err));
     }
 
-    pub async fn execute<'a, D: GenericClient>(
-        db: D,
-        query: &str,
-        query_params: QueryParams<'a>,
-    ) -> DBResult<u64> {
-        let params = query_params.unwrap_or(&[]);
+    pub async fn execute<'a>(&self, query: &str, query_params: QueryParams<'a>) -> DBResult<u64> {
+        let pool_option = self.get_pool().await;
 
-        let db_result = db.execute(query, params).await;
+        if pool_option.is_ok() {
+            let pool = pool_option.unwrap();
+            let params = query_params.unwrap_or(&[]);
 
-        Self::handle_query_debug(query, query_params);
+            let db_result = pool.execute(query, params).await;
 
-        match db_result {
-            Ok(rows) => Ok(rows),
-            Err(e) => {
-                let err = Self::handle_db_error(e);
-                error!("DB Error: {}", err);
-                return Err((500, err));
-            }
+            Self::handle_query_debug(query, query_params);
+
+            return match db_result {
+                Ok(rows) => Ok(rows),
+                Err(e) => {
+                    let err = Self::handle_db_error(e);
+                    error!("DB Error: {}", err);
+                    return Err((500, err));
+                }
+            };
         }
+        let err = pool_option.err().unwrap();
+        error!("DB Error: {}", err);
+        return Err((500, err));
     }
 
     fn handle_db_error(e: Error) -> String {
