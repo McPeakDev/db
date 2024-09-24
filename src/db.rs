@@ -5,12 +5,12 @@ use tokio_postgres::{row::Row, Error, GenericClient, NoTls};
 use tracing::{debug, error};
 
 #[derive(Clone)]
-pub struct DB {
+pub struct PostgresDB {
     connection_string: Option<String>,
     pub pool: Option<PostgresDBPool>,
 }
 
-impl DB {
+impl PostgresDB {
     pub fn new() -> Self {
         return Self {
             connection_string: None,

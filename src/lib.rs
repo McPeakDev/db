@@ -1,3 +1,3 @@
 pub mod db;
 pub mod types;
-pub use crate::db::*;
+pub use crate::db::PostgresDB;
