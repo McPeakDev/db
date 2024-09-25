@@ -4,6 +4,8 @@ use bb8_postgres::PostgresConnectionManager;
 use tokio_postgres::{row::Row, Error, NoTls};
 use tracing::{debug, error};
 
+/// ## PostgresDB
+/// An object that provides generic access to query, query_single, and execute commands
 #[derive(Clone)]
 pub struct PostgresDB {
     connection_string: Option<String>,
@@ -11,6 +13,7 @@ pub struct PostgresDB {
 }
 
 impl PostgresDB {
+    /// Create a new PostgresDB instance
     pub fn new() -> Self {
         return Self {
             connection_string: None,
@@ -18,6 +21,8 @@ impl PostgresDB {
         };
     }
 
+    /// ## setup
+    /// Setup the database with a given connection_string
     pub async fn setup(&self, connection_string: String) -> Self {
         let mut self_clone = self.clone();
 
@@ -44,6 +49,8 @@ impl PostgresDB {
         };
     }
 
+    /// ## query
+    /// Query the database for results of the given type
     pub async fn query<'a, T: From<Row>>(
         &self,
         query: &str,
@@ -89,6 +96,8 @@ impl PostgresDB {
         return Err((500, err));
     }
 
+    /// ## query_single
+    /// Query the database for a single result of the given type
     pub async fn query_single<'a, T: From<Row>>(
         &self,
         query: &str,
@@ -127,7 +136,8 @@ impl PostgresDB {
         error!("DB Error: {}", err);
         return Err((500, err));
     }
-
+    /// ## execute
+    /// Commit data to the database.
     pub async fn execute<'a>(&self, query: &str, query_params: QueryParams<'a>) -> DBResult<u64> {
         let pool_option = self.get_pool().await;
 
